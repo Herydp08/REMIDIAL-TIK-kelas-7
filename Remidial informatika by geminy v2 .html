@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remidial Informatika - Sistem Ujian</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (XLSX) untuk Import/Export Excel - Versi Stabil -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .hidden-section { display: none; }
+        .active-section { display: block; animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-gray-800">
+
+    <!-- Navbar -->
+    <nav class="bg-indigo-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-white text-indigo-700 p-2 rounded-full w-10 h-10 flex items-center justify-center">
+                    <i class="fa-solid fa-graduation-cap text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight">Remidial Informatika</h1>
+                    <p class="text-xs text-indigo-200">SMP Negeri Merdeka</p>
+                </div>
+            </div>
+            <button onclick="toggleAdminLogin()" class="text-sm bg-indigo-800 hover:bg-indigo-900 px-3 py-1 rounded transition border border-indigo-600">
+                <i class="fa-solid fa-lock mr-1"></i> Admin
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8 flex-grow">
+
+        <!-- ERROR MESSAGE IF JS LIBRARY FAILS -->
+        <div id="lib-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline">Koneksi internet diperlukan untuk memuat fitur Excel. Silakan refresh halaman jika internet sudah aktif.</span>
+        </div>
+
+        <!-- 1. LOGIN SISWA -->
+        <div id="student-login-section" class="active-section max-w-md mx-auto bg-white rounded-xl shadow-xl overflow-hidden mt-10">
+            <div class="bg-indigo-600 p-4 text-center">
+                <h2 class="text-white font-bold text-xl">Login Peserta</h2>
+                <p class="text-indigo-200 text-sm">Silakan pilih kelas dan nama Anda</p>
+            </div>
+            <div class="p-8">
+                <div class="mb-5">
+                    <label class="block text-gray-700 font-semibold mb-2">Kelas</label>
+                    <select id="login-class" onchange="populateStudentDropdown()" class="w-full border-2 border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 transition">
+                        <option value="">-- Pilih Kelas --</option>
+                        <option value="7">Kelas 7</option>
+                        <option value="8">Kelas 8</option>
+                    </select>
+                </div>
+
+                <div class="mb-8">
+                    <label class="block text-gray-700 font-semibold mb-2">Nama Lengkap</label>
+                    <select id="login-name" class="w-full border-2 border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 transition disabled:bg-gray-100 disabled:cursor-not-allowed" disabled>
+                        <option value="">-- Pilih Kelas Terlebih Dahulu --</option>
+                    </select>
+                </div>
+
+                <button onclick="startQuiz()" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transform active:scale-95 transition shadow-lg">
+                    Mulai Mengerjakan <i class="fa-solid fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. HALAMAN QUIZ -->
+        <div id="quiz-section" class="hidden-section max-w-4xl mx-auto bg-white rounded-xl shadow-xl overflow-hidden">
+            <div class="bg-indigo-50 border-b border-indigo-100 p-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10">
+                <div class="mb-2 md:mb-0">
+                    <h2 class="text-lg font-bold text-indigo-900"><i class="fa-solid fa-user-pen mr-2"></i>Lembar Soal</h2>
+                    <p class="text-sm text-gray-600">Siswa: <span id="quiz-student-name" class="font-semibold text-black"></span> | Kelas: <span id="quiz-student-class" class="font-semibold text-black"></span></p>
+                </div>
+                <div class="text-indigo-600 font-bold bg-white px-3 py-1 rounded-full shadow-sm text-sm border border-indigo-100">
+                    <i class="fa-regular fa-clock mr-1"></i> Kerjakan dengan teliti
+                </div>
+            </div>
+
+            <div id="questions-container" class="p-6 space-y-8 min-h-[400px]">
+                <!-- Soal di-render di sini -->
+            </div>
+
+            <div class="p-6 bg-gray-50 border-t">
+                <button onclick="submitQuiz()" class="w-full md:w-auto md:float-right bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> Kirim Jawaban
+                </button>
+                <div class="clear-both"></div>
+            </div>
+        </div>
+
+        <!-- 3. HALAMAN HASIL -->
+        <div id="result-section" class="hidden-section max-w-md mx-auto bg-white rounded-xl shadow-xl p-8 text-center mt-10">
+            <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fa-solid fa-check text-5xl text-green-500"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Selesai Mengerjakan!</h2>
+            <p class="text-gray-500 mb-6">Jawaban Anda telah berhasil disimpan ke dalam sistem.</p>
+            
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                <p class="text-sm text-gray-500 uppercase tracking-wider mb-1">Nilai Akhir</p>
+                <h1 id="final-score" class="text-6xl font-extrabold text-indigo-700 tracking-tighter">0</h1>
+            </div>
+
+            <button onclick="location.reload()" class="bg-gray-800 text-white py-2 px-6 rounded-full hover:bg-black transition w-full">
+                Kembali ke Halaman Utama
+            </button>
+        </div>
+
+        <!-- 4. MODAL LOGIN ADMIN -->
+        <div id="admin-login-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex justify-center items-center z-[100] backdrop-blur-sm">
+            <div class="bg-white p-8 rounded-xl shadow-2xl w-96 transform transition-all scale-100">
+                <div class="text-center mb-6">
+                    <div class="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fa-solid fa-user-shield text-2xl text-gray-600"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">Login Administrator</h3>
+                </div>
+                <input type="password" id="admin-password" placeholder="Password (default: admin123)" class="w-full border-2 border-gray-200 p-3 rounded-lg mb-6 focus:border-indigo-500 focus:outline-none">
+                <div class="flex flex-col gap-3">
+                    <button onclick="checkAdminPassword()" class="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold shadow-md">Login</button>
+                    <button onclick="toggleAdminLogin()" class="w-full py-2 text-gray-500 hover:text-gray-800 text-sm">Batal</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. PANEL ADMIN -->
+        <div id="admin-panel" class="hidden-section bg-white rounded-xl shadow-xl min-h-[600px] overflow-hidden flex flex-col md:flex-row">
+            
+            <!-- Sidebar Admin -->
+            <div class="w-full md:w-64 bg-slate-800 text-slate-300 flex flex-col">
+                <div class="p-6 border-b border-slate-700">
+                    <h2 class="text-xl font-bold text-white tracking-wide">Admin Panel</h2>
+                    <p class="text-xs text-slate-400 mt-1">Sistem Manajemen Ujian</p>
+                </div>
+                <nav class="flex-grow p-4 space-y-2">
+                    <button onclick="showAdminTab('dashboard')" id="btn-dashboard" class="admin-nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 hover:text-white transition flex items-center gap-3 bg-slate-700 text-white">
+                        <i class="fa-solid fa-chart-pie w-5"></i> Dashboard
+                    </button>
+                    <button onclick="showAdminTab('students')" id="btn-students" class="admin-nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 hover:text-white transition flex items-center gap-3">
+                        <i class="fa-solid fa-users-gear w-5"></i> Data Siswa
+                    </button>
+                    <button onclick="showAdminTab('questions')" id="btn-questions" class="admin-nav-btn w-full text-left px-4 py-3 rounded-lg hover:bg-slate-700 hover:text-white transition flex items-center gap-3">
+                        <i class="fa-solid fa-file-circle-question w-5"></i> Bank Soal
+                    </button>
+                </nav>
+                <div class="p-4 border-t border-slate-700">
+                    <button onclick="logoutAdmin()" class="w-full text-left px-4 py-2 hover:text-red-400 transition text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-power-off"></i> Keluar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Admin -->
+            <div class="flex-1 bg-slate-50 p-6 overflow-y-auto">
+                
+                <!-- Tab: Dashboard -->
+                <div id="admin-tab-dashboard" class="admin-tab">
+                    <div class="flex justify-between items-end mb-6">
+                        <div>
+                            <h3 class="text-2xl font-bold text-slate-800">Hasil Pengerjaan</h3>
+                            <p class="text-sm text-slate-500">Monitor nilai dan status siswa</p>
+                        </div>
+                        <button onclick="resetAllResults()" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm hover:bg-red-200 font-semibold border border-red-200 transition">
+                            <i class="fa-solid fa-trash-can mr-2"></i>Reset Semua Hasil
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-4 border-b border-slate-100 flex gap-4">
+                            <div class="relative flex-grow max-w-md">
+                                <i class="fa-solid fa-search absolute left-3 top-3 text-gray-400"></i>
+                                <input type="text" id="search-result" onkeyup="renderResultTable()" placeholder="Cari nama siswa..." class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-slate-600 font-semibold text-sm uppercase tracking-wider">
+                                <tr>
+                                    <th class="p-4 border-b">Nama Siswa</th>
+                                    <th class="p-4 border-b text-center">Kelas</th>
+                                    <th class="p-4 border-b text-center">Status</th>
+                                    <th class="p-4 border-b text-center">Nilai</th>
+                                    <th class="p-4 border-b text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table-body" class="text-sm divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Data Siswa -->
+                <div id="admin-tab-students" class="hidden-section admin-tab">
+                    <h3 class="text-2xl font-bold text-slate-800 mb-6">Manajemen Data Siswa</h3>
+                    
+                    <!-- Import Section -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-indigo-100 mb-8">
+                        <h4 class="font-bold text-indigo-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> Import Siswa via Excel
+                        </h4>
+                        <div class="grid md:grid-cols-2 gap-6 items-center">
+                            <div class="text-sm text-slate-600">
+                                <p class="mb-2">1. Download template Excel di bawah ini.</p>
+                                <p class="mb-2">2. Isi kolom <strong>Nama</strong> dan <strong>Kelas</strong> (7 atau 8).</p>
+                                <p class="mb-4">3. Upload file yang sudah diisi.</p>
+                                <button onclick="downloadStudentTemplate()" class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded border border-indigo-200 hover:bg-indigo-100 transition font-semibold text-sm">
+                                    <i class="fa-solid fa-download mr-1"></i> Download Template Siswa
+                                </button>
+                            </div>
+                            <div class="border-l pl-6 border-slate-200">
+                                <label class="block mb-2 text-sm font-semibold">Upload File Excel</label>
+                                <div class="flex gap-2">
+                                    <input type="file" id="student-upload" accept=".xlsx, .xls" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                                    <button onclick="importStudents()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm">Import</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- List Section -->
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-slate-700">Daftar Siswa Terdaftar</h4>
+                        <button onclick="clearAllStudents()" class="text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wide">
+                            <i class="fa-solid fa-trash mr-1"></i> Hapus Semua
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden max-h-[400px] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 sticky top-0">
+                                <tr>
+                                    <th class="p-3 text-left font-semibold text-slate-600">Nama</th>
+                                    <th class="p-3 text-center font-semibold text-slate-600">Kelas</th>
+                                    <th class="p-3 text-center font-semibold text-slate-600">Hapus</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-list-body" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Bank Soal -->
+                <div id="admin-tab-questions" class="hidden-section admin-tab">
+                    <h3 class="text-2xl font-bold text-slate-800 mb-6">Bank Soal</h3>
+                    
+                    <!-- Import Section -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-emerald-100 mb-8">
+                        <h4 class="font-bold text-emerald-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> Import Soal via Excel
+                        </h4>
+                        <div class="grid md:grid-cols-2 gap-6 items-center">
+                            <div class="text-sm text-slate-600">
+                                <p class="mb-2">1. Download template Excel soal.</p>
+                                <p class="mb-2">2. Isi kolom: <strong>Kelas, Pertanyaan, A, B, C, D, Jawaban</strong> (A/B/C/D).</p>
+                                <p class="mb-4">3. Upload file untuk memperbarui bank soal.</p>
+                                <button onclick="downloadQuestionTemplate()" class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded border border-emerald-200 hover:bg-emerald-100 transition font-semibold text-sm">
+                                    <i class="fa-solid fa-download mr-1"></i> Download Template Soal
+                                </button>
+                            </div>
+                            <div class="border-l pl-6 border-slate-200">
+                                <label class="block mb-2 text-sm font-semibold">Upload File Excel</label>
+                                <div class="flex gap-2">
+                                    <input type="file" id="question-upload" accept=".xlsx, .xls" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"/>
+                                    <button onclick="importQuestions()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 shadow-sm">Import</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter & List -->
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-2">
+                            <label class="font-semibold text-sm text-slate-600">Tampilkan:</label>
+                            <select id="filter-question-class" onchange="renderQuestionsList()" class="border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-indigo-500">
+                                <option value="7">Soal Kelas 7</option>
+                                <option value="8">Soal Kelas 8</option>
+                            </select>
+                        </div>
+                        <button onclick="clearAllQuestions()" class="text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wide">
+                            <i class="fa-solid fa-trash mr-1"></i> Kosongkan Soal
+                        </button>
+                    </div>
+
+                    <div class="space-y-4" id="questions-list-container">
+                        <!-- List Soal Rendered Here -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        // --- 0. CHECK LIBRARY ---
+        window.onload = function() {
+            if (typeof XLSX === 'undefined') {
+                document.getElementById('lib-error').classList.remove('hidden');
+                // Non-aktifkan tombol import/export jika library gagal load
+                document.querySelectorAll('button[onclick^="download"], button[onclick^="import"]').forEach(btn => btn.disabled = true);
+            }
+        };
+
+        // --- 1. DATA INITIALIZATION & LOCAL STORAGE ---
+        const DB_KEY_STUDENTS = 'remidial_v2_students';
+        const DB_KEY_QUESTIONS = 'remidial_v2_questions';
+
+        let students = JSON.parse(localStorage.getItem(DB_KEY_STUDENTS)) || [
+            { id: 1, name: "Siswa Contoh 7", class: "7", hasTaken: false, score: 0 },
+            { id: 2, name: "Siswa Contoh 8", class: "8", hasTaken: false, score: 0 }
+        ];
+
+        let questions = JSON.parse(localStorage.getItem(DB_KEY_QUESTIONS)) || {
+            class7: [
+                { id: 1, text: "Perangkat keras komputer disebut...", options: {A: "Software", B: "Hardware", C: "Brainware", D: "Malware"}, answer: "B" }
+            ],
+            class8: [
+                { id: 1, text: "Rumus rata-rata di Excel adalah...", options: {A: "SUM", B: "MIN", C: "MAX", D: "AVERAGE"}, answer: "D" }
+            ]
+        };
+
+        function saveData() {
+            localStorage.setItem(DB_KEY_STUDENTS, JSON.stringify(students));
+            localStorage.setItem(DB_KEY_QUESTIONS, JSON.stringify(questions));
+        }
+
+        // --- 2. TEMPLATE DOWNLOAD LOGIC (FIXED) ---
+        
+        function downloadStudentTemplate() {
+            if (typeof XLSX === 'undefined') return alert("Library Excel belum termuat. Cek koneksi internet.");
+            
+            try {
+                // Data dummy untuk contoh format
+                const data = [
+                    { "Nama": "Budi Santoso", "Kelas": 7 },
+                    { "Nama": "Siti Aminah", "Kelas": 8 }
+                ];
+                
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Template Siswa");
+                
+                // Trigger download
+                XLSX.writeFile(wb, "Template_Data_Siswa.xlsx");
+            } catch (error) {
+                console.error(error);
+                alert("Gagal mendownload. Browser mungkin memblokir popup.");
+            }
+        }
+
+        function downloadQuestionTemplate() {
+            if (typeof XLSX === 'undefined') return alert("Library Excel belum termuat. Cek koneksi internet.");
+
+            try {
+                // Data dummy lengkap dengan kolom yang dibutuhkan
+                const data = [
+                    {
+                        "Kelas": 7,
+                        "Pertanyaan": "Apa ibukota Indonesia?",
+                        "A": "Jakarta", "B": "Bandung", "C": "Surabaya", "D": "Medan",
+                        "Jawaban": "A"
+                    },
+                    {
+                        "Kelas": 8,
+                        "Pertanyaan": "Simbol untuk keputusan di flowchart?",
+                        "A": "Persegi", "B": "Lingkaran", "C": "Belah Ketupat", "D": "Segitiga",
+                        "Jawaban": "C"
+                    }
+                ];
+
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Template Soal");
+                
+                XLSX.writeFile(wb, "Template_Bank_Soal.xlsx");
+            } catch (error) {
+                console.error(error);
+                alert("Gagal mendownload template soal.");
+            }
+        }
+
+        // --- 3. IMPORT LOGIC ---
+
+        function importStudents() {
+            if (typeof XLSX === 'undefined') return alert("Library Excel error.");
+            
+            const fileInput = document.getElementById('student-upload');
+            const file = fileInput.files[0];
+            if(!file) return alert("Pilih file Excel terlebih dahulu!");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                    let addedCount = 0;
+                    jsonData.forEach(row => {
+                        // Fleksibilitas nama kolom (case insensitive)
+                        const nama = row.Nama || row.nama || row.NAMA;
+                        const kelas = row.Kelas || row.kelas || row.KELAS;
+
+                        if(nama && kelas) {
+                            students.push({
+                                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                                name: nama,
+                                class: String(kelas),
+                                hasTaken: false,
+                                score: 0
+                            });
+                            addedCount++;
+                        }
+                    });
+
+                    saveData();
+                    alert(`Berhasil menambahkan ${addedCount} data siswa.`);
+                    renderStudentList();
+                    fileInput.value = ''; // Reset input
+                } catch (err) {
+                    alert("Format file salah atau rusak.");
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function importQuestions() {
+            if (typeof XLSX === 'undefined') return alert("Library Excel error.");
+
+            const fileInput = document.getElementById('question-upload');
+            const file = fileInput.files[0];
+            if(!file) return alert("Pilih file Excel terlebih dahulu!");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                    let addedCount = 0;
+                    jsonData.forEach(row => {
+                        // Normalisasi nama kolom
+                        const kls = String(row.Kelas || row.kelas).trim();
+                        const tanya = row.Pertanyaan || row.pertanyaan || row.Soal;
+                        const jawab = String(row.Jawaban || row.jawaban).toUpperCase().trim();
+
+                        if(kls && tanya && jawab) {
+                            const newQ = {
+                                id: Date.now() + Math.random(),
+                                text: tanya,
+                                options: {
+                                    A: row.A || "Opsi A",
+                                    B: row.B || "Opsi B",
+                                    C: row.C || "Opsi C",
+                                    D: row.D || "Opsi D"
+                                },
+                                answer: jawab
+                            };
+
+                            if(kls === "7") questions.class7.push(newQ);
+                            else if(kls === "8") questions.class8.push(newQ);
+                            
+                            addedCount++;
+                        }
+                    });
+
+                    saveData();
+                    alert(`Berhasil menambahkan ${addedCount} soal.`);
+                    renderQuestionsList();
+                    fileInput.value = '';
+                } catch (err) {
+                    alert("Gagal membaca file excel. Pastikan format sesuai template.");
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- 4. UI NAVIGATION & LOGIC ---
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.active-section, .hidden-section').forEach(el => {
+                el.style.display = 'none';
+                el.classList.remove('active-section');
+                el.classList.add('hidden-section');
+            });
+            const el = document.getElementById(sectionId);
+            el.style.display = 'block'; // Or block depending on layout
+            el.classList.remove('hidden-section');
+            el.classList.add('active-section');
+        }
+
+        function populateStudentDropdown() {
+            const classVal = document.getElementById('login-class').value;
+            const nameSelect = document.getElementById('login-name');
+            nameSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+            
+            if (!classVal) {
+                nameSelect.disabled = true;
+                return;
+            }
+
+            const filteredStudents = students.filter(s => s.class === classVal);
+            if (filteredStudents.length === 0) {
+                nameSelect.innerHTML = '<option value="">Tidak ada data siswa</option>';
+            } else {
+                filteredStudents.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = s.id;
+                    option.textContent = s.name;
+                    nameSelect.appendChild(option);
+                });
+            }
+            nameSelect.disabled = false;
+        }
+
+        let currentStudent = null;
+
+        function startQuiz() {
+            const studentId = document.getElementById('login-name').value;
+            if (!studentId) return alert("Pilih nama siswa terlebih dahulu!");
+
+            currentStudent = students.find(s => s.id == studentId);
+
+            if (currentStudent.hasTaken) {
+                alert(`Maaf ${currentStudent.name}, Anda sudah mengerjakan soal ini. Nilai Anda: ${currentStudent.score}`);
+                return;
+            }
+
+            document.getElementById('quiz-student-name').textContent = currentStudent.name;
+            document.getElementById('quiz-student-class').textContent = currentStudent.class;
+            
+            renderQuestions(currentStudent.class);
+            showSection('quiz-section');
+            document.getElementById('student-login-section').style.display = 'none';
+        }
+
+        function renderQuestions(kelas) {
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '';
+            
+            const soalList = kelas === "7" ? questions.class7 : questions.class8;
+
+            if (soalList.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10">
+                        <i class="fa-regular fa-folder-open text-4xl text-gray-300 mb-2"></i>
+                        <p class="text-gray-500">Belum ada soal untuk kelas ${kelas}. Hubungi Guru.</p>
+                    </div>`;
+                return;
+            }
+
+            soalList.forEach((q, index) => {
+                const qDiv = document.createElement('div');
+                qDiv.className = "bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition";
+                qDiv.innerHTML = `
+                    <p class="font-bold text-lg text-gray-800 mb-4"><span class="bg-indigo-100 text-indigo-700 py-1 px-2 rounded text-sm mr-2">No. ${index + 1}</span> ${q.text}</p>
+                    <div class="space-y-3 pl-2">
+                        ${Object.entries(q.options).map(([key, val]) => `
+                            <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-transparent hover:bg-indigo-50 hover:border-indigo-100 transition group">
+                                <div class="relative flex items-center">
+                                    <input type="radio" name="q-${q.id}" value="${key}" class="peer h-5 w-5 cursor-pointer appearance-none rounded-full border border-gray-300 checked:border-indigo-600 checked:bg-indigo-600 transition-all">
+                                    <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                    </div>
+                                </div>
+                                <span class="text-gray-700 group-hover:text-indigo-900"><span class="font-bold mr-1 text-gray-400 group-hover:text-indigo-500">${key}.</span> ${val}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(qDiv);
+            });
+        }
+
+        function submitQuiz() {
+            const soalList = currentStudent.class === "7" ? questions.class7 : questions.class8;
+            if(soalList.length === 0) return;
+
+            if (!confirm("Kirim jawaban sekarang? Pastikan semua sudah terisi.")) return;
+
+            let correctCount = 0;
+            soalList.forEach(q => {
+                const selected = document.querySelector(`input[name="q-${q.id}"]:checked`);
+                if (selected && selected.value === q.answer) {
+                    correctCount++;
+                }
+            });
+
+            const finalScore = Math.round((correctCount / soalList.length) * 100);
+
+            currentStudent.hasTaken = true;
+            currentStudent.score = finalScore;
+            saveData();
+
+            document.getElementById('final-score').textContent = finalScore;
+            showSection('result-section');
+            document.getElementById('quiz-section').style.display = 'none';
+        }
+
+        // --- 5. ADMIN FUNCTIONS ---
+
+        function toggleAdminLogin() {
+            const modal = document.getElementById('admin-login-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function checkAdminPassword() {
+            const pass = document.getElementById('admin-password').value;
+            if (pass === "admin123") {
+                toggleAdminLogin();
+                document.getElementById('student-login-section').style.display = 'none';
+                showSection('admin-panel');
+                renderResultTable();
+                
+                // Highlight active Tab
+                showAdminTab('dashboard');
+            } else {
+                alert("Password Salah!");
+            }
+        }
+
+        function logoutAdmin() {
+            location.reload();
+        }
+
+        function showAdminTab(tabName) {
+            document.querySelectorAll('.admin-tab').forEach(t => t.style.display = 'none');
+            document.getElementById(`admin-tab-${tabName}`).style.display = 'block';
+            
+            // Update button styles
+            document.querySelectorAll('.admin-nav-btn').forEach(btn => {
+                btn.classList.remove('bg-slate-700', 'text-white');
+                btn.classList.add('text-slate-300');
+            });
+            const activeBtn = document.getElementById(`btn-${tabName}`);
+            if(activeBtn) {
+                activeBtn.classList.add('bg-slate-700', 'text-white');
+                activeBtn.classList.remove('text-slate-300');
+            }
+
+            if(tabName === 'dashboard') renderResultTable();
+            if(tabName === 'students') renderStudentList();
+            if(tabName === 'questions') renderQuestionsList();
+        }
+
+        function renderResultTable() {
+            const tbody = document.getElementById('results-table-body');
+            const search = document.getElementById('search-result').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = students.filter(s => s.name.toLowerCase().includes(search));
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Tidak ada data siswa ditemukan.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition";
+                tr.innerHTML = `
+                    <td class="p-4 border-b font-medium text-gray-800">${s.name}</td>
+                    <td class="p-4 border-b text-center text-gray-600">${s.class}</td>
+                    <td class="p-4 border-b text-center">
+                        <span class="${s.hasTaken ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'} px-3 py-1 rounded-full text-xs font-semibold">
+                            ${s.hasTaken ? 'Selesai' : 'Belum'}
+                        </span>
+                    </td>
+                    <td class="p-4 border-b text-center font-bold text-gray-800">${s.score}</td>
+                    <td class="p-4 border-b text-center">
+                        <button onclick="resetStudent(${s.id})" class="text-orange-500 hover:text-orange-700 transition" title="Reset">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetStudent(id) { // Fix: removed argument type check issues by implicit casting in find
+            if(!confirm("Reset siswa ini? Mereka bisa mengerjakan ulang.")) return;
+            const s = students.find(st => st.id == id); // loose equality for string/number id mix
+            if(s) {
+                s.hasTaken = false;
+                s.score = 0;
+                saveData();
+                renderResultTable();
+            }
+        }
+
+        function resetAllResults() {
+            if(!confirm("Yakin reset SEMUA hasil ujian?")) return;
+            students.forEach(s => { s.hasTaken = false; s.score = 0; });
+            saveData();
+            renderResultTable();
+        }
+
+        function renderStudentList() {
+            const tbody = document.getElementById('students-list-body');
+            tbody.innerHTML = '';
+            
+            if(students.length === 0) {
+                 tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Data siswa kosong. Silakan import.</td></tr>`;
+                 return;
+            }
+
+            students.forEach((s) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 border-b">${s.name}</td>
+                    <td class="p-3 border-b text-center">${s.class}</td>
+                    <td class="p-3 border-b text-center">
+                        <button onclick="deleteStudent('${s.id}')" class="text-red-500 hover:bg-red-50 p-2 rounded transition"><i class="fa-solid fa-trash-can"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function deleteStudent(id) {
+            if(!confirm("Hapus data siswa ini?")) return;
+            students = students.filter(s => s.id != id);
+            saveData();
+            renderStudentList();
+        }
+
+        function clearAllStudents() {
+            if(!confirm("Hapus SELURUH data siswa?")) return;
+            students = [];
+            saveData();
+            renderStudentList();
+        }
+
+        function renderQuestionsList() {
+            const container = document.getElementById('questions-list-container');
+            const classFilter = document.getElementById('filter-question-class').value;
+            const list = classFilter === "7" ? questions.class7 : questions.class8;
+            
+            container.innerHTML = '';
+            if(list.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 bg-slate-50 rounded border border-dashed border-slate-300 text-slate-400">Belum ada soal untuk kelas ini.</div>';
+                return;
+            }
+
+            list.forEach((q, idx) => {
+                const div = document.createElement('div');
+                div.className = "border border-slate-200 p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition relative group";
+                div.innerHTML = `
+                    <button onclick="deleteQuestion('${classFilter}', ${q.id})" class="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition">
+                        <i class="fa-solid fa-trash-can text-lg"></i>
+                    </button>
+                    <div class="pr-8">
+                        <p class="font-bold text-indigo-900 mb-2 text-sm"><span class="bg-indigo-50 px-2 py-0.5 rounded text-indigo-600 mr-2">#${idx+1}</span>${q.text}</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs md:text-sm text-slate-600 pl-2">
+                            <div class="${q.answer === 'A' ? 'text-green-600 font-bold bg-green-50 rounded px-1' : ''}">A. ${q.options.A}</div>
+                            <div class="${q.answer === 'B' ? 'text-green-600 font-bold bg-green-50 rounded px-1' : ''}">B. ${q.options.B}</div>
+                            <div class="${q.answer === 'C' ? 'text-green-600 font-bold bg-green-50 rounded px-1' : ''}">C. ${q.options.C}</div>
+                            <div class="${q.answer === 'D' ? 'text-green-600 font-bold bg-green-50 rounded px-1' : ''}">D. ${q.options.D}</div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function deleteQuestion(kelas, id) {
+            if(!confirm("Hapus soal ini?")) return;
+            if(kelas === "7") questions.class7 = questions.class7.filter(q => q.id != id);
+            else questions.class8 = questions.class8.filter(q => q.id != id);
+            saveData();
+            renderQuestionsList();
+        }
+
+        function clearAllQuestions() {
+            const classFilter = document.getElementById('filter-question-class').value;
+            if(!confirm(`Hapus SEMUA soal Kelas ${classFilter}?`)) return;
+            
+            if(classFilter === "7") questions.class7 = [];
+            else questions.class8 = [];
+            
+            saveData();
+            renderQuestionsList();
+        }
+
+        // Initialize First View
+        showSection('student-login-section');
+
+    </script>
+</body>
+</html>
+
